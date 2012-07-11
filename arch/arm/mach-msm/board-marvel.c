@@ -56,7 +56,9 @@
 /* #include <mach/gpio_chip.h> */
 #include <mach/board.h>
 #include <mach/board_htc.h>
+#ifdef CONFIG_SERIAL_MSM_HS_PURE_ANDROID
 #include <mach/bcm_bt_lpm.h>
+#endif
 #include <mach/msm_serial_hs.h>
 #include <mach/atmega_microp.h>
 #include <mach/htc_battery.h>
@@ -1213,7 +1215,9 @@ static struct msm_serial_hs_platform_data msm_uart_dm1_pdata = {
 
 static struct platform_device *devices[] __initdata = {
 	&msm_device_i2c,
+#ifdef CONFIG_SERIAL_MSM_HS_PURE_ANDROID
 	&marvel_bcm_bt_lpm_device,
+#endif
 	&htc_battery_pdev,
 	&msm_camera_sensor_s5k4e1gx,
 	&marvel_rfkill,
@@ -1457,7 +1461,9 @@ static void __init marvel_init(void)
 
 #ifdef CONFIG_SERIAL_MSM_HS
 	msm_device_uart_dm1.dev.platform_data = &msm_uart_dm1_pdata;
+#ifndef CONFIG_SERIAL_MSM_HS_PURE_ANDROID
 	msm_device_uart_dm1.name = "msm_serial_hs_bcm";	/* for bcm */
+#endif
 	msm_add_serial_devices(3);
 #else
 	msm_add_serial_devices(0);

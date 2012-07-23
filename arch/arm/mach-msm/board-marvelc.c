@@ -55,6 +55,9 @@
 /* #include <mach/gpio_chip.h> */
 #include <mach/board.h>
 #include <mach/board_htc.h>
+#ifdef CONFIG_SERIAL_MSM_HS_PURE_ANDROID
+#include <mach/bcm_bt_lpm.h>
+#endif
 #include <mach/msm_serial_hs.h>
 #include <mach/atmega_microp.h>
 #include <mach/htc_battery.h>
@@ -673,8 +676,57 @@ static struct platform_device marvelc_flashlight_device = {
 	},
 };
 
+#if defined(CONFIG_SERIAL_MSM_HS) && defined(CONFIG_SERIAL_MSM_HS_PURE_ANDROID)
+static struct msm_serial_hs_platform_data msm_uart_dm1_pdata = {
+	.rx_wakeup_irq = -1,
+	.inject_rx_on_wakeup = 0,
+	.exit_lpm_cb = bcm_bt_lpm_exit_lpm_locked,
+};
+
+static struct bcm_bt_lpm_platform_data bcm_bt_lpm_pdata = {
+	.gpio_wake = MARVELC_GPIO_BT_CHIP_WAKE,
+	.gpio_host_wake = MARVELC_GPIO_BT_HOST_WAKE,
+	.request_clock_off_locked = msm_hs_request_clock_off_locked,
+	.request_clock_on_locked = msm_hs_request_clock_on_locked,
+};
+
+struct platform_device marvelc_bcm_bt_lpm_device = {
+	.name = "bcm_bt_lpm",
+	.id = 0,
+	.dev = {
+		.platform_data = &bcm_bt_lpm_pdata,
+	},
+};
+
+#define ATAG_BDADDR 0x43294329  /* mahimahi bluetooth address tag */
+#define ATAG_BDADDR_SIZE 4
+#define BDADDR_STR_SIZE 18
+
+static char bdaddr[BDADDR_STR_SIZE];
+extern unsigned char *get_bt_bd_ram(void);
+
+module_param_string(bdaddr, bdaddr, sizeof(bdaddr), S_IWUSR | S_IRUGO);
+MODULE_PARM_DESC(bdaddr, "bluetooth address");
+
+#elif defined(CONFIG_SERIAL_MSM_HS)
+static struct msm_serial_hs_platform_data msm_uart_dm1_pdata = {
+	.rx_wakeup_irq = MSM_GPIO_TO_INT(MARVELC_GPIO_BT_HOST_WAKE),
+	.inject_rx_on_wakeup = 0,
+	.cpu_lock_supported = 1,
+
+	/* for bcm */
+	.bt_wakeup_pin_supported = 1,
+	.bt_wakeup_pin = MARVELC_GPIO_BT_CHIP_WAKE,
+	.host_wakeup_pin = MARVELC_GPIO_BT_HOST_WAKE,
+
+};
+#endif /* CONFIG_SERIAL_MSM_HS */
+
 static struct platform_device *devices[] __initdata = {
 	&msm_device_i2c,
+#ifdef CONFIG_SERIAL_MSM_HS_PURE_ANDROID
+	&marvelc_bcm_bt_lpm_device,
+#endif
 	&htc_battery_pdev,
 	&msm_camera_sensor_s5k4e1gx,
 	&marvelc_rfkill,
@@ -833,20 +885,6 @@ static struct perflock_platform_data marvelc_perflock_data = {
 	.table_size = ARRAY_SIZE(marvelc_perf_acpu_table),
 };
 
-#ifdef CONFIG_SERIAL_MSM_HS
-static struct msm_serial_hs_platform_data msm_uart_dm1_pdata = {
-	.rx_wakeup_irq = MSM_GPIO_TO_INT(MARVELC_GPIO_BT_HOST_WAKE),
-	.inject_rx_on_wakeup = 0,
-	.cpu_lock_supported = 1,
-
-	/* for bcm */
-	.bt_wakeup_pin_supported = 1,
-	.bt_wakeup_pin = MARVELC_GPIO_BT_CHIP_WAKE,
-	.host_wakeup_pin = MARVELC_GPIO_BT_HOST_WAKE,
-
-};
-#endif
-
 static ssize_t marvelc_virtual_keys_show(struct kobject *kobj,
 			struct kobj_attribute *attr, char *buf)
 {
@@ -917,7 +955,9 @@ static void __init marvelc_init(void)
 
 #ifdef CONFIG_SERIAL_MSM_HS
 	msm_device_uart_dm1.dev.platform_data = &msm_uart_dm1_pdata;
+#ifndef CONFIG_SERIAL_MSM_HS_PURE_ANDROID
 	msm_device_uart_dm1.name = "msm_serial_hs_bcm";	/* for bcm */
+#endif
 	msm_add_serial_devices(3);
 #else
 	msm_add_serial_devices(0);
